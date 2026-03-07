@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add Koubachi Plant Sensor",
+        "description": "Enter the details for your Koubachi plant sensor. The MAC address and encryption key can be found in the Koubachi app or sensor documentation.",
+        "data": {
+          "name": "Device name",
+          "mac": "MAC address (12 hex chars, no colons)",
+          "key": "Encryption key (32 hex chars)",
+          "calibration": "Calibration parameters (JSON)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Koubachi Plant Sensor",
+        "description": "Update the name or calibration parameters for device `{mac}`. The MAC address and encryption key cannot be changed.",
+        "data": {
+          "name": "Device name",
+          "calibration": "Calibration parameters (JSON)"
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "MAC address must be 12 lowercase hex characters (e.g. aabbccddeeff)",
+      "invalid_key": "Encryption key must be 32 hex characters",
+      "invalid_calibration": "Calibration must be a valid JSON object",
+      "already_configured": "This device is already configured"
+    },
+    "abort": {
+      "already_configured": "Device is already configured",
+      "reconfigure_successful": "Configuration updated successfully"
+    }
+  }
+}
