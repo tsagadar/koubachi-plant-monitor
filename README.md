@@ -149,7 +149,7 @@ For each configured device the integration creates the following entities:
 |--------|------|-------------|
 | `sensor.<name>_temperature` | °C | Air temperature |
 | `sensor.<name>_soil_temperature` | °C | Soil temperature |
-| `sensor.<name>_soil_moisture` | integer (0–6) | Soil moisture on Koubachi scale |
+| `sensor.<name>_soil_moisture` | % | Soil moisture (0 = wilting point, 100 = field capacity) |
 | `sensor.<name>_light` | lx | Ambient light (whole number) |
 | `sensor.<name>_battery` | % | Battery level (2× AA alkaline) |
 | `sensor.<name>_rssi` | dBm | Wi-Fi signal strength |
@@ -175,7 +175,7 @@ The [Plant Monitor](https://github.com/Olen/homeassistant-plant) custom integrat
 
 4. Set thresholds manually or look up your plant species in OpenPlantBook to auto-populate them.
 
-> **Note on soil moisture scale:** Koubachi reports soil moisture on a 0–6 scale (0 = dry, 6 = saturated). Set your Plant Monitor min/max thresholds accordingly (e.g. min: 2, max: 5).
+> **Note on soil moisture:** Values are converted from the raw pF (soil water tension) reading to a 0–100% scale where 100% = field capacity (pF 2.0, soil holds maximum plant-available water) and 0% = permanent wilting point (pF 4.2). OpenPlantBook thresholds map directly to this scale.
 
 ---
 

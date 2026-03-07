@@ -43,18 +43,35 @@ def convert_sfh3710_light(x: float, calibration_parameters: dict) -> float:
     return round(x)
 
 
-def convert_soil_moisture(x: float, calibration_parameters: dict) -> float:
+def convert_soil_moisture(x: float, calibration_parameters: dict) -> float | None:
     soil_moisture_min = calibration_parameters.get('SOIL_MOISTURE_MIN', 0)
     soil_moisture_discontinuity = calibration_parameters.get('SOIL_MOISTURE_DISCONTINUITY', 0)
+    if soil_moisture_discontinuity == soil_moisture_min:
+        # Without calibration the denominator is zero; no meaningful value possible.
+        return None
     x = ((x - soil_moisture_min)
          * ((8778.25 - 3515.25) / (soil_moisture_discontinuity - soil_moisture_min)) + 3515.25)
-    x = (8.130159393183e-018 * x ** 5
-         - 0.000000000000259586800701037 * x ** 4
-         + 0.00000000328783014726288 * x ** 3
-         - 0.0000206371829755294 * x ** 2
-         + 0.0646453707101697 * x
-         - 79.7740602786336)
-    return round(max(0.0, min(6.0, x)))
+    # Polynomial from koubachi-pyserver: maps ADC range to pF (soil water tension).
+    # pF is the log10 of the water column height (cm) needed to extract water from soil.
+    # Higher pF = drier soil. Range 0 (saturated) to ~7 (oven dry).
+    pf = (8.130159393183e-018 * x ** 5
+          - 0.000000000000259586800701037 * x ** 4
+          + 0.00000000328783014726288 * x ** 3
+          - 0.0000206371829755294 * x ** 2
+          + 0.0646453707101697 * x
+          - 79.7740602786336)
+    pf = max(0.0, min(6.0, pf))
+
+    # Convert pF to percentage for compatibility with Plant Monitor (OpenPlantBook thresholds).
+    # We map the plant-available water range to 0–100%:
+    #   pF 2.0 → 100%  (field capacity: soil holds maximum plant-available water after drainage)
+    #   pF 4.2 →   0%  (permanent wilting point: plants can no longer extract water)
+    # Field capacity is conventionally pF 1.8–2.5 depending on soil type; pF 2.0 is used
+    # here as a practical middle ground for typical potting mixes used with houseplants.
+    PF_FIELD_CAPACITY = 2.0
+    PF_WILTING_POINT = 4.2
+    pct = (PF_WILTING_POINT - pf) / (PF_WILTING_POINT - PF_FIELD_CAPACITY) * 100.0
+    return round(max(0.0, min(100.0, pct)))
 
 
 def convert_tsl2561_light(x: float, _calibration_parameters: dict) -> float:
