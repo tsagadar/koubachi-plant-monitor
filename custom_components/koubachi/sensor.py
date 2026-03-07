@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import RestoreSensor, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -31,7 +31,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class KoubachiSensor(SensorEntity):
+class KoubachiSensor(RestoreSensor):
     """Represents a single measurement channel from a Koubachi plant sensor."""
 
     _attr_has_entity_name = True
@@ -62,7 +62,11 @@ class KoubachiSensor(SensorEntity):
         }
 
     async def async_added_to_hass(self) -> None:
-        """Subscribe to dispatcher signal for new readings."""
+        """Restore last known state and subscribe to new readings."""
+        if (last_data := await self.async_get_last_sensor_data()) is not None:
+            self._attr_native_value = last_data.native_value
+            self._attr_available = True
+
         signal = signal_new_reading(self._mac, self._info.key)
         self.async_on_remove(
             async_dispatcher_connect(self.hass, signal, self._handle_new_reading)
