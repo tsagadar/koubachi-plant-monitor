@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-# /// script
-# requires-python = ">=3.14"
-# ///
 """Bump version, run checks, commit, tag, and push.
 
 Usage:

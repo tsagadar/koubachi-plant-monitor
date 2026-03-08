@@ -212,3 +212,33 @@ Try adding calibration parameters. The raw ADC-to-physical conversion assumes sp
 
 **Light sensor always reads 0**
 The `SFH3710_DC_OFFSET_CORRECTION` and `RN171_SMU_GAIN` calibration parameters are likely missing. Without `RN171_SMU_GAIN` the formula multiplies by zero. Add these values to the calibration JSON if available.
+
+---
+
+## Development
+
+### Setup
+
+```sh
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dev dependencies
+uv sync
+```
+
+### Check (lint + format + tests)
+
+```sh
+uv run scripts/check.py
+```
+
+### Release
+
+```sh
+uv run scripts/release.py          # bump minor version (default)
+uv run scripts/release.py patch    # bump patch version
+uv run scripts/release.py major    # bump major version
+```
+
+The release script bumps the version in `manifest.json`, runs checks, commits, tags, and pushes to `origin`.
