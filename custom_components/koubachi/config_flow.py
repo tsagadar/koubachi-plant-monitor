@@ -46,7 +46,7 @@ class KoubachiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     calibration = json.loads(calibration_raw)
                     if not isinstance(calibration, dict):
                         raise ValueError("not a dict")
-                except (json.JSONDecodeError, ValueError):
+                except json.JSONDecodeError, ValueError:
                     errors[CONF_CALIBRATION] = "invalid_calibration"
 
             if not errors:
@@ -81,7 +81,7 @@ class KoubachiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 calibration = json.loads(calibration_raw)
                 if not isinstance(calibration, dict):
                     raise ValueError("not a dict")
-            except (json.JSONDecodeError, ValueError):
+            except json.JSONDecodeError, ValueError:
                 errors[CONF_CALIBRATION] = "invalid_calibration"
 
             if not errors:
