@@ -1,11 +1,11 @@
 """Config flow for the Koubachi Plant Sensor integration."""
+
 from __future__ import annotations
 
 import json
 import re
 
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResult
 
@@ -29,9 +29,7 @@ class KoubachiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(
-        self, user_input: dict | None = None
-    ) -> FlowResult:
+    async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
         errors: dict[str, str] = {}
 
         if user_input is not None:

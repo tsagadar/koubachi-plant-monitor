@@ -4,6 +4,7 @@ The Koubachi sensor talks to api.koubachi.com on port 80, using paths
 under /v1/smart_devices/{mac}/. Point that hostname at Home Assistant
 via local DNS and these views handle the three endpoints the sensor uses.
 """
+
 from __future__ import annotations
 
 import json
@@ -50,17 +51,17 @@ def _encrypt_response(device_data: dict, params: dict) -> bytes:
 # Sensor definitions mirrored from koubachi-pyserver sensors.py:
 # {sensor_id: (enabled, polling_interval_or_None)}
 _SENSORS: dict[int, tuple[bool, int | None]] = {
-    1:    (False, 3600),
-    2:    (True,  86400),
-    6:    (True,  None),
-    7:    (True,  3600),
-    8:    (True,  3600),
-    9:    (True,  None),
-    10:   (True,  18000),
-    11:   (True,  None),
-    12:   (True,  None),
-    15:   (True,  3600),
-    29:   (True,  3600),
+    1: (False, 3600),
+    2: (True, 86400),
+    6: (True, None),
+    7: (True, 3600),
+    8: (True, 3600),
+    9: (True, None),
+    10: (True, 18000),
+    11: (True, None),
+    12: (True, None),
+    15: (True, 3600),
+    29: (True, 3600),
     # Statistics (all disabled)
     4096: (False, None),
     4112: (False, None),
@@ -107,7 +108,7 @@ class KoubachiDeviceView(HomeAssistantView):
 
         device_data = _get_device_data(hass, mac)
         if device_data is None:
-            _LOGGER.warning("Koubachi: unknown device %s — not in configured entries", mac)
+            _LOGGER.warning("Koubachi: unknown device %s — not configured", mac)
             return web.Response(status=404)
 
         raw = await request.read()
@@ -120,7 +121,10 @@ class KoubachiDeviceView(HomeAssistantView):
             "current_time": int(time.time()),
             "last_config_change": device_data.get("last_config_change", 1_000_000_000),
         }
-        return web.Response(body=_encrypt_response(device_data, response_params), content_type=CONTENT_TYPE)
+        return web.Response(
+            body=_encrypt_response(device_data, response_params),
+            content_type=CONTENT_TYPE,
+        )
 
 
 class KoubachiConfigView(HomeAssistantView):
@@ -136,7 +140,7 @@ class KoubachiConfigView(HomeAssistantView):
 
         device_data = _get_device_data(hass, mac)
         if device_data is None:
-            _LOGGER.warning("Koubachi: unknown device %s — not in configured entries", mac)
+            _LOGGER.warning("Koubachi: unknown device %s — not configured", mac)
             return web.Response(status=404)
 
         raw = await request.read()
@@ -147,7 +151,10 @@ class KoubachiConfigView(HomeAssistantView):
             return web.Response(status=400)
         last_config_change = device_data.get("last_config_change", 1_000_000_000)
         response_params = _build_config_response(last_config_change)
-        return web.Response(body=_encrypt_response(device_data, response_params), content_type=CONTENT_TYPE)
+        return web.Response(
+            body=_encrypt_response(device_data, response_params),
+            content_type=CONTENT_TYPE,
+        )
 
 
 class KoubachiReadingsView(HomeAssistantView):
@@ -163,7 +170,7 @@ class KoubachiReadingsView(HomeAssistantView):
 
         device_data = _get_device_data(hass, mac)
         if device_data is None:
-            _LOGGER.warning("Koubachi: unknown device %s — not in configured entries", mac)
+            _LOGGER.warning("Koubachi: unknown device %s — not configured", mac)
             return web.Response(status=404)
 
         raw = await request.read()
@@ -174,13 +181,17 @@ class KoubachiReadingsView(HomeAssistantView):
             return web.Response(status=400)
 
         if not plaintext:
-            _LOGGER.info("Koubachi: empty readings body from %s (check-in with no data)", mac)
+            _LOGGER.info("Koubachi: empty readings body from %s (no data)", mac)
             data = {}
         else:
             try:
                 data = json.loads(plaintext)
             except json.JSONDecodeError:
-                _LOGGER.warning("Koubachi: readings body is not valid JSON from %s: %r", mac, plaintext)
+                _LOGGER.warning(
+                    "Koubachi: readings body is not valid JSON from %s: %r",
+                    mac,
+                    plaintext,
+                )
                 return web.Response(status=400)
 
         calibration = device_data.get(CONF_CALIBRATION, {})
@@ -205,8 +216,12 @@ class KoubachiReadingsView(HomeAssistantView):
 
             converted = convert_reading(type_id, raw_value, calibration)
             if converted is not None:
-                _LOGGER.info("Koubachi %s: %s = %s %s", mac, info.key, converted, info.unit)
-                async_dispatcher_send(hass, signal_new_reading(mac, info.key), converted)
+                _LOGGER.info(
+                    "Koubachi %s: %s = %s %s", mac, info.key, converted, info.unit
+                )
+                async_dispatcher_send(
+                    hass, signal_new_reading(mac, info.key), converted
+                )
 
         response_params = {
             "current_time": int(time.time()),

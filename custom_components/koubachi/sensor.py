@@ -1,9 +1,10 @@
 """Koubachi sensor platform – one entity per sensor type per device."""
+
 from __future__ import annotations
 
 import logging
 
-from homeassistant.components.sensor import RestoreSensor, SensorEntity
+from homeassistant.components.sensor import RestoreSensor
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -24,10 +25,7 @@ async def async_setup_entry(
     mac = entry.data[CONF_MAC]
     name = entry.title
 
-    entities = [
-        KoubachiSensor(mac, name, info)
-        for info in SENSOR_ENTITY_KEYS.values()
-    ]
+    entities = [KoubachiSensor(mac, name, info) for info in SENSOR_ENTITY_KEYS.values()]
     async_add_entities(entities)
 
 
