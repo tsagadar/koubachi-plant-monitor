@@ -11,6 +11,9 @@ dev = [
     "pytest-homeassistant-custom-component>=0.13",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.ruff]
 target-version = "py311"
 

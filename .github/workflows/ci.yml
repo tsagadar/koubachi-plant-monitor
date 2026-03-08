@@ -17,6 +17,15 @@ jobs:
       - run: uv run ruff check custom_components/
       - run: uv run ruff format --check custom_components/
 
+  pytest:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+      - run: uv run pytest -v
+
   hacs:
     name: HACS validation
     runs-on: ubuntu-latest
