@@ -14,14 +14,17 @@ from .const import CONF_CALIBRATION, CONF_KEY, CONF_MAC, DOMAIN
 MAC_RE = re.compile(r"^[0-9a-f]{12}$")
 KEY_RE = re.compile(r"^[0-9a-fA-F]{32}$")
 
-STEP_USER_SCHEMA = vol.Schema(
-    {
-        vol.Required("name"): str,
-        vol.Required(CONF_MAC): str,
-        vol.Required(CONF_KEY): str,
-        vol.Optional(CONF_CALIBRATION, default="{}"): str,
-    }
-)
+
+def _user_schema(defaults: dict | None = None) -> vol.Schema:
+    d = defaults or {}
+    return vol.Schema(
+        {
+            vol.Required("name", default=d.get("name", "")): str,
+            vol.Required(CONF_MAC, default=d.get(CONF_MAC, "")): str,
+            vol.Required(CONF_KEY, default=d.get(CONF_KEY, "")): str,
+            vol.Optional(CONF_CALIBRATION, default=d.get(CONF_CALIBRATION, "{}")): str,
+        }
+    )
 
 
 class KoubachiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -64,7 +67,7 @@ class KoubachiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=STEP_USER_SCHEMA,
+            data_schema=_user_schema(user_input),
             errors=errors,
         )
 
