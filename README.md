@@ -44,7 +44,21 @@ The Koubachi sensor always connects to `api.koubachi.com` on **port 80**. You ne
 
 ### Home Assistant OS (HAOS) — recommended
 
-HAOS runs on a dedicated machine with nothing else on port 80. Configure HA's HTTP server to listen on port 80 directly:
+HAOS runs on a dedicated machine with nothing else competing on port 80. There are two approaches:
+
+**Option 1 — Port redirect with iptables (recommended)**
+
+Redirect incoming port 80 traffic to HA's default port 8123. This keeps HA on its normal port and avoids any side effects. Run the following from the Terminal add-on:
+
+```sh
+iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8123
+```
+
+To make the rule persistent across reboots, add it to an automation that runs on HA start, or use the Terminal add-on to add it to a startup script.
+
+**Option 2 — Move HA to port 80**
+
+Configure HA's HTTP server to listen on port 80 directly:
 
 ```yaml
 # configuration.yaml
@@ -52,13 +66,23 @@ http:
   server_port: 80
 ```
 
-Restart HA after making this change. Then add the [DNS override](#dns-override) and you're done.
+> **Side effects of changing `server_port` to 80:**
+> - The HA web UI moves to port 80 — bookmarks, the mobile app, and any other tools pointing to `:8123` will need updating.
+> - Conflicts with the Let's Encrypt or NGINX add-on if either is installed (they already use port 80/443).
+
+Then add the [DNS override](#dns-override) and restart HA.
 
 ### Home Assistant Container (plain Docker)
 
 HA listens on port 8123 by default. You need to either expose port 80 from the container or use a reverse proxy.
 
-**Option 1 — Run HA on port 80** (simplest): configure HA to use port 80 and expose it:
+**Option 1 — Port redirect on the host** (keeps HA on 8123):
+
+```sh
+iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8123
+```
+
+**Option 2 — Run HA on port 80**: configure HA to use port 80 and expose it (see side effects note above):
 
 ```yaml
 # configuration.yaml
@@ -75,7 +99,7 @@ services:
       - "8123:8123" # keep if you also access HA on the default port
 ```
 
-**Option 2 — Reverse proxy** (if port 80 is already taken by another service): route requests for `api.koubachi.com` to the HA container. Example using Traefik with a dynamic config file (e.g. `traefik/dynamic/koubachi.yml`):
+**Option 3 — Reverse proxy** (if port 80 is already taken by another service): route requests for `api.koubachi.com` to the HA container. Example using Traefik with a dynamic config file (e.g. `traefik/dynamic/koubachi.yml`):
 
 ```yaml
 http:
@@ -100,7 +124,7 @@ Runtipi uses Traefik on port 80 for its dashboard. Use the Traefik dynamic confi
 
 ### Home Assistant Supervised
 
-Behaves like HAOS — set `server_port: 80` in `configuration.yaml`. Verify nothing else on the host is using port 80 first.
+Behaves like HAOS — the iptables redirect is the safest option. Alternatively set `server_port: 80` in `configuration.yaml` (see side effects note above) after verifying nothing else on the host uses port 80.
 
 ---
 
