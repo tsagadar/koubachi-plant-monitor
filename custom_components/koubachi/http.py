@@ -205,7 +205,7 @@ class KoubachiReadingsView(HomeAssistantView):
         for reading in data.get("readings", []):
             try:
                 _ts, type_id, raw_value = reading[0], reading[1], reading[2]
-            except (IndexError, TypeError, ValueError):
+            except IndexError, TypeError, ValueError:
                 _LOGGER.warning("Koubachi: malformed reading from %s: %s", mac, reading)
                 continue
 
