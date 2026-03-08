@@ -2,6 +2,10 @@
 
 Integrates [Koubachi](https://www.koubachi.com/) Wi-Fi plant sensors with Home Assistant. The sensor pushes encrypted readings directly to HA's built-in HTTP server — no cloud, no separate process, no sensor reconfiguration.
 
+![Plant Monitor dashboard showing Avocado, Tamarinde and Zitrone with soil moisture, light and temperature readings](sample_dashboard_plant_monitor.png)
+
+*Dashboard built with [Plant Monitor by Olen](https://github.com/Olen/homeassistant-plant) (plant health tracking), [OpenPlantBook](https://open.plantbook.io/) (species thresholds), and [Flower Card](https://github.com/Olen/lovelace-flower-card) (UI). This integration provides the sensor data; the other integrations handle visualisation and thresholds.*
+
 ## How it works
 
 The Koubachi sensor resolves `api.koubachi.com` via DNS and POSTs AES-128-CBC encrypted readings to port 80. This integration registers HTTP endpoints inside HA's built-in web server. Add a local DNS override pointing `api.koubachi.com` to your HA host and the sensor starts delivering data — no changes to the sensor required.
