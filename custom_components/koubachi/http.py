@@ -10,13 +10,24 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections import defaultdict
 
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
+from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
+from homeassistant.components.recorder.statistics import async_add_external_statistics
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.util import dt as dt_util
 
-from .const import CONF_CALIBRATION, CONF_KEY, CONTENT_TYPE, DOMAIN, signal_new_reading
+from .const import (
+    CONF_CALIBRATION,
+    CONF_KEY,
+    CONF_MAC,
+    CONTENT_TYPE,
+    DOMAIN,
+    signal_new_reading,
+)
 from .crypto import decrypt, encrypt
 from .sensors import SENSOR_TYPES, convert_reading
 
@@ -202,9 +213,11 @@ class KoubachiReadingsView(HomeAssistantView):
                 calibration = {}
 
         # Readings format: [[timestamp, sensor_type_id, raw_value], ...]
+        # Collect all readings grouped by sensor key so we can record full history.
+        readings_by_key: dict[str, list[tuple[int, float, object]]] = defaultdict(list)
         for reading in data.get("readings", []):
             try:
-                _ts, type_id, raw_value = reading[0], reading[1], reading[2]
+                ts, type_id, raw_value = reading[0], reading[1], reading[2]
             except IndexError, TypeError, ValueError:
                 _LOGGER.warning("Koubachi: malformed reading from %s: %s", mac, reading)
                 continue
@@ -216,12 +229,50 @@ class KoubachiReadingsView(HomeAssistantView):
 
             converted = convert_reading(type_id, raw_value, calibration)
             if converted is not None:
-                _LOGGER.info(
-                    "Koubachi %s: %s = %s %s", mac, info.key, converted, info.unit
-                )
-                async_dispatcher_send(
-                    hass, signal_new_reading(mac, info.key), converted
-                )
+                readings_by_key[info.key].append((ts, converted, info))
+
+        # Look up the device name for statistic metadata labels.
+        entry = next(
+            (
+                e
+                for e in hass.config_entries.async_entries(DOMAIN)
+                if e.data.get(CONF_MAC) == mac
+            ),  # noqa: E501
+            None,
+        )
+        device_name = entry.title if entry else mac
+
+        for key, readings in readings_by_key.items():
+            readings.sort(key=lambda r: r[0])  # oldest → newest
+            latest_ts, latest_value, info = readings[-1]
+
+            _LOGGER.info(
+                "Koubachi %s: %s = %s %s (measured at %s, %d reading(s) in batch)",
+                mac,
+                info.key,
+                latest_value,
+                info.unit,
+                latest_ts,
+                len(readings),
+            )
+            # Update the live entity state with the most recent reading.
+            async_dispatcher_send(hass, signal_new_reading(mac, info.key), latest_value)
+
+            # Write all readings to recorder statistics with their actual timestamps
+            # so that HA history reflects when measurements were actually taken.
+            metadata = StatisticMetaData(
+                has_mean=True,
+                has_sum=False,
+                name=f"{device_name} {info.name}",
+                source=DOMAIN,
+                statistic_id=f"{DOMAIN}:{mac}_{key}",
+                unit_of_measurement=info.unit,
+            )
+            statistics = [
+                StatisticData(start=dt_util.utc_from_timestamp(ts), mean=value)
+                for ts, value, _ in readings
+            ]
+            async_add_external_statistics(hass, metadata, statistics)
 
         response_params = {
             "current_time": int(time.time()),
