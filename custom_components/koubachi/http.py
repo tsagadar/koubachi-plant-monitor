@@ -269,7 +269,12 @@ class KoubachiReadingsView(HomeAssistantView):
                 unit_of_measurement=info.unit,
             )
             statistics = [
-                StatisticData(start=dt_util.utc_from_timestamp(ts), mean=value)
+                StatisticData(
+                    start=dt_util.utc_from_timestamp(ts).replace(
+                        minute=0, second=0, microsecond=0
+                    ),
+                    mean=value,
+                )
                 for ts, value, _ in readings
             ]
             async_add_external_statistics(hass, metadata, statistics)
