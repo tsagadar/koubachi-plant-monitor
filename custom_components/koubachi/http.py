@@ -277,7 +277,19 @@ class KoubachiReadingsView(HomeAssistantView):
                 )
                 for ts, value, _ in readings
             ]
-            async_add_external_statistics(hass, metadata, statistics)
+            try:
+                async_add_external_statistics(hass, metadata, statistics)
+                _LOGGER.debug(
+                    "Koubachi: queued %d statistic(s) for %s:%s_%s",
+                    len(statistics),
+                    DOMAIN,
+                    mac,
+                    key,
+                )
+            except Exception:
+                _LOGGER.exception(
+                    "Koubachi: failed to add statistics for %s:%s_%s", DOMAIN, mac, key
+                )
 
         response_params = {
             "current_time": int(time.time()),
