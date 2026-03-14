@@ -1,7 +1,7 @@
 {
   "domain": "koubachi",
   "name": "Koubachi Plant Sensor",
-  "version": "2.2.2",
+  "version": "2.3.0",
   "config_flow": true,
   "requirements": [
     "cryptography>=3.4"
