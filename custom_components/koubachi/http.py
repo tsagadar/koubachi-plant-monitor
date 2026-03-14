@@ -10,20 +10,15 @@ from __future__ import annotations
 import json
 import logging
 import time
-from collections import defaultdict
 
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
-from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
-from homeassistant.components.recorder.statistics import async_add_external_statistics
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_CALIBRATION,
     CONF_KEY,
-    CONF_MAC,
     CONTENT_TYPE,
     DOMAIN,
     signal_new_reading,
@@ -32,6 +27,39 @@ from .crypto import decrypt, encrypt
 from .sensors import SENSOR_TYPES, convert_reading
 
 _LOGGER = logging.getLogger(__name__)
+
+# Transmit every 6 hours; measure 5 seconds before transmit.
+_TRANSMIT_INTERVAL = 21600
+_SENSOR_POLLING_INTERVAL = 21595
+
+# Sensor definitions mirrored from koubachi-pyserver sensors.py:
+# {sensor_id: (enabled, polling_interval_or_None)}
+_SENSORS: dict[int, tuple[bool, int | None]] = {
+    1: (False, _SENSOR_POLLING_INTERVAL),
+    2: (True, _SENSOR_POLLING_INTERVAL),
+    6: (True, None),
+    7: (True, _SENSOR_POLLING_INTERVAL),
+    8: (True, _SENSOR_POLLING_INTERVAL),
+    9: (True, None),
+    10: (True, _SENSOR_POLLING_INTERVAL),
+    11: (True, None),
+    12: (True, None),
+    15: (True, _SENSOR_POLLING_INTERVAL),
+    29: (True, _SENSOR_POLLING_INTERVAL),
+    # Statistics (all disabled)
+    4096: (False, None),
+    4112: (False, None),
+    4113: (False, None),
+    4114: (False, None),
+    4115: (False, None),
+    4116: (False, None),
+    4128: (False, None),
+    # Errors (all disabled)
+    8192: (False, None),
+    8193: (False, None),
+    8194: (False, None),
+    8195: (False, None),
+}
 
 
 def _get_device_data(hass: HomeAssistant, mac: str) -> dict | None:
@@ -59,41 +87,11 @@ def _encrypt_response(device_data: dict, params: dict) -> bytes:
     return encrypt(key, body.encode("utf-8"))
 
 
-# Sensor definitions mirrored from koubachi-pyserver sensors.py:
-# {sensor_id: (enabled, polling_interval_or_None)}
-_SENSORS: dict[int, tuple[bool, int | None]] = {
-    1: (False, 3600),
-    2: (True, 86400),
-    6: (True, None),
-    7: (True, 3600),
-    8: (True, 3600),
-    9: (True, None),
-    10: (True, 18000),
-    11: (True, None),
-    12: (True, None),
-    15: (True, 3600),
-    29: (True, 3600),
-    # Statistics (all disabled)
-    4096: (False, None),
-    4112: (False, None),
-    4113: (False, None),
-    4114: (False, None),
-    4115: (False, None),
-    4116: (False, None),
-    4128: (False, None),
-    # Errors (all disabled)
-    8192: (False, None),
-    8193: (False, None),
-    8194: (False, None),
-    8195: (False, None),
-}
-
-
 def _build_config_response(last_config_change: int) -> dict:
     """Build the device config response matching koubachi-pyserver get_device_config."""
     cfg: dict = {
         "current_time": int(time.time()),
-        "transmit_interval": 55202,
+        "transmit_interval": _TRANSMIT_INTERVAL,
         "transmit_app_led": 1,
         "sensor_app_led": 0,
         "day_threshold": 10.0,
@@ -213,8 +211,8 @@ class KoubachiReadingsView(HomeAssistantView):
                 calibration = {}
 
         # Readings format: [[timestamp, sensor_type_id, raw_value], ...]
-        # Collect all readings grouped by sensor key so we can record full history.
-        readings_by_key: dict[str, list[tuple[int, float, object]]] = defaultdict(list)
+        # Track the latest value per sensor key and dispatch it to the entity.
+        latest_by_key: dict[str, tuple[int, float, object]] = {}
         for reading in data.get("readings", []):
             try:
                 ts, type_id, raw_value = reading[0], reading[1], reading[2]
@@ -229,67 +227,20 @@ class KoubachiReadingsView(HomeAssistantView):
 
             converted = convert_reading(type_id, raw_value, calibration)
             if converted is not None:
-                readings_by_key[info.key].append((ts, converted, info))
+                prev = latest_by_key.get(info.key)
+                if prev is None or ts > prev[0]:
+                    latest_by_key[info.key] = (ts, converted, info)
 
-        # Look up the device name for statistic metadata labels.
-        entry = next(
-            (
-                e
-                for e in hass.config_entries.async_entries(DOMAIN)
-                if e.data.get(CONF_MAC) == mac
-            ),  # noqa: E501
-            None,
-        )
-        device_name = entry.title if entry else mac
-
-        for key, readings in readings_by_key.items():
-            readings.sort(key=lambda r: r[0])  # oldest → newest
-            latest_ts, latest_value, info = readings[-1]
-
+        for key, (ts, value, info) in latest_by_key.items():
             _LOGGER.info(
-                "Koubachi %s: %s = %s %s (measured at %s, %d reading(s) in batch)",
+                "Koubachi %s: %s = %s %s (measured at %s)",
                 mac,
                 info.key,
-                latest_value,
+                value,
                 info.unit,
-                latest_ts,
-                len(readings),
+                ts,
             )
-            # Update the live entity state with the most recent reading.
-            async_dispatcher_send(hass, signal_new_reading(mac, info.key), latest_value)
-
-            # Write all readings to recorder statistics with their actual timestamps
-            # so that HA history reflects when measurements were actually taken.
-            metadata = StatisticMetaData(
-                has_mean=True,
-                has_sum=False,
-                name=f"{device_name} {info.name}",
-                source=DOMAIN,
-                statistic_id=f"{DOMAIN}:{mac}_{key}",
-                unit_of_measurement=info.unit,
-            )
-            statistics = [
-                StatisticData(
-                    start=dt_util.utc_from_timestamp(ts).replace(
-                        minute=0, second=0, microsecond=0
-                    ),
-                    mean=value,
-                )
-                for ts, value, _ in readings
-            ]
-            try:
-                async_add_external_statistics(hass, metadata, statistics)
-                _LOGGER.debug(
-                    "Koubachi: queued %d statistic(s) for %s:%s_%s",
-                    len(statistics),
-                    DOMAIN,
-                    mac,
-                    key,
-                )
-            except Exception:
-                _LOGGER.exception(
-                    "Koubachi: failed to add statistics for %s:%s_%s", DOMAIN, mac, key
-                )
+            async_dispatcher_send(hass, signal_new_reading(mac, info.key), value)
 
         response_params = {
             "current_time": int(time.time()),
