@@ -8,7 +8,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import CONF_MAC, DOMAIN
-from .http import KoubachiConfigView, KoubachiDeviceView, KoubachiReadingsView
+from .http import (
+    _SENSOR_POLLING_INTERVAL,
+    _TRANSMIT_INTERVAL,
+    KoubachiConfigView,
+    KoubachiDeviceView,
+    KoubachiReadingsView,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,6 +30,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     mac = entry.data[CONF_MAC]
     _LOGGER.info("Koubachi: setting up entry for %s (entry_id=%s)", mac, entry.entry_id)
+
+    # Keep a config version stamp in the entry so that changing transmit/polling
+    # intervals bumps entry.modified_at and forces the sensor to re-fetch config.
+    config_version = f"{_TRANSMIT_INTERVAL}/{_SENSOR_POLLING_INTERVAL}"
+    if entry.data.get("_config_version") != config_version:
+        hass.config_entries.async_update_entry(
+            entry, data={**entry.data, "_config_version": config_version}
+        )
 
     hass.data.setdefault(DOMAIN, {})
 
